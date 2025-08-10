@@ -13,7 +13,7 @@ use crate::{
     error::Error,
     process::{GameProcess, ProcessMemory},
     remote_ptr::RemotePtr,
-    types::CGameAIBase,
+    types::{CGameAIBase, CGameObject, CGameSprite, ObjectType},
 };
 
 #[derive(Debug)]
@@ -81,7 +81,7 @@ struct MockProcess {
 impl ProcessMemory for &MockProcess {
     fn read_mem(&self, address: usize, length: usize) -> Result<Vec<u8>, Error> {
         let mut slice = MemoryRegion::from_absolute_address(&self.memory_regions, address, length)
-            .unwrap_or_else(|| panic!("Invalid address: {address}"));
+            .ok_or(Error::Memory(format!("Invalid address: 0x{address:x}")))?;
 
         let mut buffer = vec![0; length];
         slice.read_exact(buffer.as_mut_slice())?;
@@ -161,8 +161,26 @@ fn read_mem_test() -> Result<(), Error> {
 
     let ai = entities
         .into_iter()
-        .filter(|e| e.id != u16::MAX)
-        .map(|e| CGameAIBase::new(&process, &e))
+        .filter(|e| e.is_valid())
+        .map(|e| {
+            let base = CGameAIBase::new(&process, &e);
+            base.map(|base| (e, base))
+        })
+        .filter_map(|base| match base {
+            Ok((
+                e,
+                Some(
+                    base @ CGameAIBase {
+                        object:
+                            CGameObject {
+                                object_type: ObjectType::Sprite,
+                                ..
+                            },
+                    },
+                ),
+            )) => Some(CGameSprite::new(&process, &e, base)),
+            _ => None,
+        })
         .collect::<Result<Vec<_>, Error>>()?;
 
     panic!("{ai:#?}");

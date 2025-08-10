@@ -15,12 +15,10 @@ mod tests;
 
 use crate::{
     error::Error,
-    padding::Padding,
-    process::{get_process_procs, GameProcess, ProcessMemory}, remote_ptr::RemotePtr,
+    process::{GameProcess, ProcessMemory, get_process_procs},
+    remote_ptr::RemotePtr,
 };
 use std::{ffi::c_void, mem::MaybeUninit};
-
-use rust_utils::byte_readers::ReadBytes;
 
 mod entity_list {
     pub const OFFSET: usize = 0x27780;
@@ -33,6 +31,11 @@ mod entity_list {
 struct EntityPtr {
     id: u16,
     ptr: RemotePtr<c_void>,
+}
+impl EntityPtr {
+    pub fn is_valid(&self) -> bool {
+        self.id != u16::MAX
+    }
 }
 
 #[allow(clippy::missing_transmute_annotations)]
@@ -77,7 +80,20 @@ fn main() -> Result<(), Error> {
     entities
         .into_iter()
         .filter(|x| x.id != u16::MAX)
-        .map(|x| types::CGameAIBase::new(&game_process, &x))
+        .map(|x| {
+            let base = types::CGameAIBase::new(&game_process, &x);
+
+            base.map(|base| (x, base))
+        })
+        .filter_map(|x| {
+            if let Ok((entity, Some(base))) = x
+                && base.object.object_type == types::ObjectType::Sprite
+            {
+                types::CGameSprite::new(&game_process, &entity, base).unwrap()
+            } else {
+                None
+            }
+        })
         .for_each(|x| println!("{x:#?}"));
 
     Ok(())
