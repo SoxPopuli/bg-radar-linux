@@ -1,0 +1,5 @@
+/target
+
+# ignore memory dump files
+*.dump
+*.maps
