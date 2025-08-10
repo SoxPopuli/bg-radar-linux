@@ -16,7 +16,7 @@ mod tests;
 use crate::{
     error::Error,
     padding::Padding,
-    process::{get_process_procs, GameProcess}, remote_ptr::RemotePtr,
+    process::{get_process_procs, GameProcess, ProcessMemory}, remote_ptr::RemotePtr,
 };
 use std::{ffi::c_void, mem::MaybeUninit};
 

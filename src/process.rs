@@ -6,6 +6,22 @@ use std::{
 
 use crate::error::Error;
 
+pub trait ProcessMemory {
+    fn read_mem(&self, address: usize, length: usize) -> Result<Vec<u8>, Error>;
+    fn read_mem_into(
+        &self,
+        buffer: &mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<isize, Error>;
+    unsafe fn read_mem_into_unsafe<T>(
+        &self,
+        buffer: *mut T,
+        address: usize,
+        length: usize,
+    ) -> Result<isize, Error>;
+}
+
 #[derive(Debug)]
 pub struct GameProcess {
     pub path: PathBuf,
@@ -43,8 +59,10 @@ impl GameProcess {
             base_address,
         }))
     }
+}
 
-    pub unsafe fn read_mem_into_unsafe<T>(
+impl ProcessMemory for &GameProcess {
+    unsafe fn read_mem_into_unsafe<T>(
         &self,
         buffer: *mut T,
         address: usize,
@@ -74,7 +92,7 @@ impl GameProcess {
         }
     }
 
-    pub fn read_mem_into(
+    fn read_mem_into(
         &self,
         buffer: &mut [u8],
         address: usize,
@@ -91,7 +109,7 @@ impl GameProcess {
         unsafe { self.read_mem_into_unsafe(buffer.as_mut_ptr(), address, length) }
     }
 
-    pub fn read_mem(&self, address: usize, length: usize) -> Result<Vec<u8>, Error> {
+    fn read_mem(&self, address: usize, length: usize) -> Result<Vec<u8>, Error> {
         let mut dst_buf = vec![0; length];
 
         self.read_mem_into(dst_buf.as_mut_slice(), address, length)

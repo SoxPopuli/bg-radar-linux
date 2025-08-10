@@ -1,6 +1,12 @@
-use std::ffi::{c_char, c_void};
+use std::ffi::{CStr, c_char, c_void};
 
-use crate::{EntityPtr, error::Error, process::GameProcess, remote_ptr::RemotePtr};
+
+use crate::{
+    EntityPtr,
+    error::Error,
+    process::ProcessMemory,
+    remote_ptr::RemotePtr,
+};
 
 #[repr(u8)]
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
@@ -30,41 +36,46 @@ pub struct CPoint {
     pub y: i32,
 }
 
-struct ProcessPtr<'a> {
-    process: &'a GameProcess,
-    ptr: &'a RemotePtr<c_void>,
+fn read<T>(process: impl ProcessMemory, ptr: RemotePtr<c_void>, offset: isize) -> Result<T, Error> {
+    unsafe { ptr.byte_offset(offset).cast().read(process) }
 }
-impl<'a> ProcessPtr<'a> {
-    fn read<T>(&self, offset: isize) -> Result<T, Error> {
-        unsafe { self.ptr.byte_offset(offset).cast().read(self.process) }
-    }
 
-    fn read_bytes(&self, offset: isize, len: usize) -> Result<Vec<u8>, Error> {
-        unsafe { self.ptr.byte_offset(offset).read_bytes(self.process, len) }
-    }
+fn read_bytes(process: impl ProcessMemory, ptr: RemotePtr<c_void>, offset: isize, len: usize) -> Result<Vec<u8>, Error> {
+    unsafe { ptr.byte_offset(offset).read_bytes(process, len) }
+}
 
-    fn read_array<T>(&self, offset: isize, len: usize) -> Result<Vec<T>, Error> {
-        unsafe {
-            self.ptr
-                .byte_offset(offset)
-                .cast()
-                .read_array(self.process, len)
-        }
+fn read_array<T>(process: impl ProcessMemory, ptr: RemotePtr<c_void>, offset: isize, len: usize) -> Result<Vec<T>, Error> {
+    unsafe {
+        ptr
+            .byte_offset(offset)
+            .cast()
+            .read_array(process, len)
     }
 }
 
-fn read_string(ptr: &ProcessPtr, offset: isize, strlen: usize) -> Result<String, Error> {
-    let bytes: Vec<u8> = ptr.read_bytes(offset, strlen)?;
-    let cstring = unsafe { std::ffi::CString::from_vec_unchecked(bytes) };
+fn read_string(
+    process: impl ProcessMemory + Copy,
+    ptr: RemotePtr<c_void>,
+    offset: isize,
+    strlen: usize,
+) -> Result<Option<String>, Error>
+{
+    let char_ptr: *mut c_char = read(process, ptr, offset)?;
+    let char_ptr = RemotePtr::new(char_ptr);
+    let bytes = unsafe { char_ptr.read_bytes(process, strlen)? };
 
-    Ok(cstring.to_string_lossy().to_string())
+    Ok({
+        CStr::from_bytes_until_nul(&bytes)
+            .ok()
+            .map(|slice| slice.to_string_lossy().to_string())
+    })
 }
 
 #[repr(C)]
 #[derive(Debug, Default)]
 /// https://eeex-docs.readthedocs.io/en/latest/EE%20Game%20Structures%20%28x64%29/CA/index.html#caiobjecttype
 pub struct CAIObjectType {
-    name: String,
+    name: Option<String>,
     enemy_ally: i8,
     general: i8,
     race: i8,
@@ -76,11 +87,12 @@ pub struct CAIObjectType {
     alignment: i8,
 }
 impl CAIObjectType {
-    fn new(process: &GameProcess, ptr: &RemotePtr<c_void>) -> Result<Self, Error> {
-        let p = ProcessPtr { process, ptr };
+    fn new(process: impl ProcessMemory + Copy, ptr: RemotePtr<c_void>) -> Result<Self, Error>
+    {
+        let name = read_string(process, ptr, 0x0, 8)?;
 
         Ok(Self {
-            name: read_string(&p, 0x0, 8)?,
+            name,
             ..Default::default()
         })
     }
@@ -107,24 +119,22 @@ pub struct CGameAIBase {
 }
 impl CGameAIBase {
     pub fn new(
-        process: &GameProcess,
+        process: impl ProcessMemory + Copy,
         EntityPtr { id, ptr }: &EntityPtr,
     ) -> Result<Option<Self>, Error> {
         if *id == u16::MAX {
             return Ok(None);
         }
 
-        let p = ProcessPtr { process, ptr };
-
         Ok(Some(Self {
             object: CGameObject {
-                object_type: p.read(0x8)?,
-                pos: p.read(0xC)?,
-                pos_z: p.read(0x14)?,
-                list_type: p.read(0x28)?,
-                type_ai: CAIObjectType::new(process, &ptr.byte_offset(0x30))?,
-                id: p.read(0x48)?,
-                can_be_seen: p.read(0x4C)?,
+                object_type: read(process, *ptr, 0x8)?,
+                pos: read(process, *ptr, 0xC)?,
+                pos_z: read(process, *ptr, 0x14)?,
+                list_type: read(process, *ptr, 0x28)?,
+                type_ai: CAIObjectType::new(process, ptr.byte_offset(0x30))?,
+                id: read(process, *ptr, 0x48)?,
+                can_be_seen: read(process, *ptr, 0x4C)?,
             },
         }))
     }
