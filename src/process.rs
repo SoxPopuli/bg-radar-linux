@@ -22,6 +22,16 @@ pub trait ProcessMemory {
     ) -> Result<isize, Error>;
 }
 
+pub(crate) fn get_base_address_from_memory_map(maps: &str) -> Result<NonZeroUsize, Error> {
+    maps.trim_end()
+        .lines()
+        .nth(3)
+        .and_then(|x| Some(x.split_once('-')?.0))
+        .and_then(|x| usize::from_str_radix(x, 16).ok())
+        .and_then(NonZero::new)
+        .ok_or(Error::Memory("Could not get base address".into()))
+}
+
 #[derive(Debug)]
 pub struct GameProcess {
     pub path: PathBuf,
@@ -43,14 +53,7 @@ impl GameProcess {
 
         let maps = read_to_string(path.join("maps"))?;
 
-        let base_address = maps
-            .trim_end()
-            .lines()
-            .nth(3)
-            .and_then(|x| Some(x.split_once('-')?.0))
-            .and_then(|x| usize::from_str_radix(x, 16).ok())
-            .and_then(NonZero::new)
-            .ok_or(Error::Memory("Could not get base address".into()))?;
+        let base_address = get_base_address_from_memory_map(&maps)?;
 
         Ok(Some(Self {
             path,
