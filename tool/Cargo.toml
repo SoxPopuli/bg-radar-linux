@@ -1,0 +1,7 @@
+[package]
+name = "bg-radar-linux-tool"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+core = { path = "../core", package = "bg-radar-linux-core" }

@@ -1,0 +1,15 @@
+[package]
+name = "bg-radar-linux-overlay"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+core = { path = "../core", package = "bg-radar-linux-core" }
+libc.workspace = true
+# gl = "0.14.0"
+
+[build-dependencies]
+gl_generator = "0.14.0"

@@ -1,12 +1,17 @@
-[package]
-name = "bg-radar-linux"
+[workspace]
+resolver = "3"
+members = [
+    "core",
+    "tool",
+    "overlay",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-encoding_rs = "0.8.35"
+[workspace.dependencies]
 libc = "0.2.174"
 rust-utils = { git = "https://github.com/SoxPopuli/rust-utils.git", tag = "v1.8.0", features = [
-    "byte_readers"
-]}
-static_assertions = "1.1.0"
+    "byte_readers",
+] }
