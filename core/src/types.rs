@@ -71,7 +71,16 @@ fn read_res_ref(
     ptr: RemotePtr<c_void>,
     offset: isize,
 ) -> Result<String, Error> {
-    let bytes = read_bytes(process, ptr, offset, 8)?;
+    read_res_ref_with_size(process, ptr, offset, 8)
+}
+
+fn read_res_ref_with_size(
+    process: impl ProcessMemory,
+    ptr: RemotePtr<c_void>,
+    offset: isize,
+    size: usize,
+) -> Result<String, Error> {
+    let bytes = read_bytes(process, ptr, offset, size)?;
 
     let null_byte = bytes
         .iter()
@@ -343,6 +352,7 @@ pub struct CGameEffect {
     res: String,
     res_2: String,
     res_3: String,
+    script_name: String,
     effect_id: Effect,
     duration: u32,
     duration_type: u32,
@@ -362,6 +372,7 @@ impl CGameEffect {
             res,
             res_2: read_res_ref(process, base_ptr, 0x68)?,
             res_3: read_res_ref(process, base_ptr, 0x70)?,
+            script_name: read_res_ref_with_size(process, base_ptr, 0xA0, 32)?,
             effect_id: read(process, base_ptr, 0x8)?,
             duration_type: read(process, base_ptr, 0x1C)?,
             duration: read(process, base_ptr, 0x20)?,
