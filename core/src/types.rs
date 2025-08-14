@@ -1,6 +1,19 @@
 use std::ffi::{CStr, c_char, c_void};
 
-use crate::{error::Error, ids::classes::Class, process::ProcessMemory, remote_ptr::RemotePtr, EntityPtr};
+use crate::{
+    EntityPtr,
+    error::Error,
+    ids::{
+        alignment::Alignment,
+        classes::{Class, ClassLevels},
+        enemy_ally::EnemyAlly,
+        gender::Gender,
+        general::General,
+        race::Race,
+    },
+    process::ProcessMemory,
+    remote_ptr::RemotePtr,
+};
 
 #[repr(u8)]
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
@@ -102,9 +115,24 @@ fn read_string(
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
-pub enum Lookup<F, U> {
-    Found(F),
+pub enum Lookup<T, U> {
+    Found(T),
     Unknown(U),
+}
+impl<T, U> Lookup<T, U> {
+    pub fn to_option(self) -> Option<T> {
+        match self {
+            Self::Found(f) => Some(f),
+            Self::Unknown(_) => None,
+        }
+    }
+
+    pub fn as_option(&self) -> Option<&T> {
+        match self {
+            Self::Found(f) => Some(f),
+            Self::Unknown(_) => None,
+        }
+    }
 }
 
 #[repr(C)]
@@ -112,37 +140,41 @@ pub enum Lookup<F, U> {
 /// https://eeex-docs.readthedocs.io/en/latest/EE%20Game%20Structures%20%28x64%29/CA/index.html#caiobjecttype
 pub struct CAIObjectType {
     pub name: Option<String>,
-    pub enemy_ally: i8,
-    pub general: i8,
-    pub race: i8,
-    pub class: Lookup<Class, i8>,
+    pub enemy_ally: Lookup<EnemyAlly, u8>,
+    pub general: Lookup<General, u8>,
+    pub race: Lookup<Race, u8>,
+    pub class: Lookup<Class, u8>,
     pub instance: i32,
-    pub special_case: [i8; 5],
-    pub specifics: i8,
-    pub gender: i8,
-    pub alignment: i8,
+    pub special_case: [u8; 5],
+    pub specifics: u8,
+    pub gender: Lookup<Gender, u8>,
+    pub alignment: Lookup<Alignment, u8>,
 }
 impl CAIObjectType {
     fn new(process: impl ProcessMemory + Copy, ptr: RemotePtr<c_void>) -> Result<Self, Error> {
         let name = read_string(process, ptr, 0x0, 8)?;
-        let class = read(process, ptr, 0xB)?;
 
-        let class = 
-            Class::try_from(class as u8)
-            .map(Lookup::Found)
-            .unwrap_or(Lookup::Unknown(class));
+        macro_rules! to_lookup {
+            ($enum_type: ty, $offset: expr) => {{
+                read(process, ptr, $offset).map(|x| {
+                    <$enum_type>::try_from(x)
+                        .map(Lookup::Found)
+                        .unwrap_or(Lookup::Unknown(x))
+                })
+            }};
+        }
 
         Ok(Self {
             name,
-            enemy_ally: read(process, ptr, 0x8)?,
-            general: read(process, ptr, 0x9)?,
-            race: read(process, ptr, 0xA)?,
-            class,
+            enemy_ally: to_lookup!(EnemyAlly, 0x8)?,
+            general: to_lookup!(General, 0x9)?,
+            race: to_lookup!(Race, 0xA)?,
+            class: to_lookup!(Class, 0xB)?,
             instance: read(process, ptr, 0xC)?,
             special_case: read(process, ptr, 0x10)?,
             specifics: read(process, ptr, 0x15)?,
-            gender: read(process, ptr, 0x16)?,
-            alignment: read(process, ptr, 0x17)?,
+            gender: to_lookup!(Gender, 0x16)?,
+            alignment: to_lookup!(Alignment, 0x17)?,
         })
     }
 }
@@ -193,47 +225,47 @@ impl CGameAIBase {
 #[derive(Debug)]
 /// https://eeex-docs.readthedocs.io/en/latest/EE%20Game%20Structures%20%28x64%29/CD/index.html#cderivedstats
 pub struct CDerivedStats {
-    max_hp: i16,
-    ac: i16,
-    thac0: i16,
+    pub max_hp: i16,
+    pub ac: i16,
+    pub thac0: i16,
 
-    ac_crush_mod: i16,
-    ac_missile_mod: i16,
-    ac_pierce_mod: i16,
-    ac_slash_mod: i16,
+    pub ac_crush_mod: i16,
+    pub ac_missile_mod: i16,
+    pub ac_pierce_mod: i16,
+    pub ac_slash_mod: i16,
 
-    number_of_attacks: i16,
+    pub number_of_attacks: i16,
 
-    save_vs_death: i16,
-    save_vs_wands: i16,
-    save_vs_poly: i16,
-    save_vs_breath: i16,
-    save_vs_spell: i16,
+    pub save_vs_death: i16,
+    pub save_vs_wands: i16,
+    pub save_vs_poly: i16,
+    pub save_vs_breath: i16,
+    pub save_vs_spell: i16,
 
-    resist_fire: i16,
-    resist_cold: i16,
-    resist_electricity: i16,
-    resist_acid: i16,
-    resist_magic: i16,
-    resist_magic_fire: i16,
-    resist_magic_cold: i16,
-    resist_slashing: i16,
-    resist_crushing: i16,
-    resist_piercing: i16,
-    resist_missile: i16,
+    pub resist_fire: i16,
+    pub resist_cold: i16,
+    pub resist_electricity: i16,
+    pub resist_acid: i16,
+    pub resist_magic: i16,
+    pub resist_magic_fire: i16,
+    pub resist_magic_cold: i16,
+    pub resist_slashing: i16,
+    pub resist_crushing: i16,
+    pub resist_piercing: i16,
+    pub resist_missile: i16,
 
-    level1: i16,
-    level2: i16,
-    level3: i16,
+    pub level1: i16,
+    pub level2: i16,
+    pub level3: i16,
 
-    str: i16,
+    pub str: i16,
     /// e.g. exceptional strength
-    str_extra: i16,
-    dex: i16,
-    con: i16,
-    int: i16,
-    wis: i16,
-    chr: i16,
+    pub str_extra: i16,
+    pub dex: i16,
+    pub con: i16,
+    pub int: i16,
+    pub wis: i16,
+    pub chr: i16,
 }
 impl CDerivedStats {
     pub fn new(process: impl ProcessMemory + Copy, ptr: RemotePtr<c_void>) -> Result<Self, Error> {
@@ -287,10 +319,10 @@ impl CDerivedStats {
 #[derive(Debug)]
 /// https://eeex-docs.readthedocs.io/en/latest/EE%20Game%20Structures%20%28x64%29/CC/index.html#ccreaturefileheader
 pub struct CCreatureFileHeader {
-    hp: i16,
-    level1: i8,
-    level2: i8,
-    level3: i8,
+    pub hp: i16,
+    pub level1: i8,
+    pub level2: i8,
+    pub level3: i8,
 }
 impl CCreatureFileHeader {
     pub fn new(process: impl ProcessMemory + Copy, ptr: RemotePtr<c_void>) -> Result<Self, Error> {
@@ -313,6 +345,8 @@ pub struct CGameSprite {
     pub name: String,
     pub derived_stats: CDerivedStats,
     pub current_area: String,
+
+    pub class_levels: ClassLevels,
 }
 impl CGameSprite {
     pub fn new(
@@ -329,13 +363,20 @@ impl CGameSprite {
             let name = read_string(process, entity.ptr, 0x3910, 64)?.unwrap();
             let current_area = read_res_ref(process, entity.ptr, 0x3A20 - 0x18)?;
 
+            let derived_stats = CDerivedStats::new(process, entity.ptr.byte_offset(0x1120))?;
+
+            let class = base.object.type_ai.class.clone().to_option().unwrap();
+            let levels = class.get_levels(&derived_stats);
+
             Ok(Some(Self {
                 base,
                 res_ref,
                 base_stats: CCreatureFileHeader::new(process, entity.ptr.byte_offset(0x560))?,
                 name,
-                derived_stats: CDerivedStats::new(process, entity.ptr.byte_offset(0x1120))?,
+                derived_stats,
                 current_area,
+
+                class_levels: levels,
             }))
         }
     }

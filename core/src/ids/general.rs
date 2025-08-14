@@ -1,0 +1,26 @@
+crate::int_enum!{
+    pub enum General: u8 {
+        GeneralItem = 0,
+        Humanoid = 1,
+        Animal = 2,
+        Dead = 3,
+        Undead = 4,
+        GiantHumanoid = 5,
+        Frozen = 6,
+        Plant = 7,
+        Weapon = 101,
+        Armor = 102,
+        Amulet = 103,
+        Belt = 104,
+        Boots = 105,
+        Ammo = 106,
+        Helmet = 107,
+        Key = 108,
+        Potion = 109,
+        Ring = 110,
+        Scroll = 111,
+        Shield = 112,
+        Gloves = 113,
+        Monster = 255,
+    }
+}

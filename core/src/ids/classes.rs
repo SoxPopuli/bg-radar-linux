@@ -1,4 +1,4 @@
-use crate::int_enum;
+use crate::{int_enum, types::CDerivedStats};
 
 int_enum! {
     pub enum Class: u8 {
@@ -145,6 +145,47 @@ int_enum! {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub enum ClassLevels {
+    Single {
+        class: Class,
+        level: u8,
+    },
+    Double {
+        class_1: Class,
+        level_1: u8,
+
+        class_2: Class,
+        level_2: u8,
+    },
+    Triple {
+        class_1: Class,
+        level_1: u8,
+
+        class_2: Class,
+        level_2: u8,
+
+        class_3: Class,
+        level_3: u8,
+    },
+}
+impl ClassLevels {
+    pub fn hit_dice(&self) -> u8 {
+        match self {
+            Self::Single { level, .. } => *level,
+            Self::Double {
+                level_1, level_2, ..
+            } => level_1 + level_2,
+            Self::Triple {
+                level_1,
+                level_2,
+                level_3,
+                ..
+            } => level_1 + level_2 + level_3,
+        }
+    }
+}
+
 impl Class {
     pub fn class_count(&self) -> u8 {
         match self {
@@ -163,5 +204,66 @@ impl Class {
 
             _ => 1,
         }
+    }
+
+    pub fn is_composite_class(&self) -> bool {
+        self.class_count() > 1
+    }
+
+    pub fn get_levels(
+        &self,
+        CDerivedStats {
+            level1,
+            level2,
+            level3,
+            ..
+        }: &CDerivedStats,
+    ) -> ClassLevels {
+        use ClassLevels::*;
+
+        let single = |class| Single {
+            class,
+            level: *level1 as u8,
+        };
+        let double = |class_1, class_2| Double {
+            class_1,
+            class_2,
+
+            level_1: *level1 as u8,
+            level_2: *level2 as u8,
+        };
+        let triple = |class_1, class_2, class_3| Triple {
+            class_1,
+            class_2,
+            class_3,
+
+            level_1: *level1 as u8,
+            level_2: *level2 as u8,
+            level_3: *level3 as u8,
+        };
+
+        match self {
+            Class::NoClass => single(Class::NoClass),
+
+            Class::FighterMage => double(Self::Fighter, Self::Mage),
+            Class::FighterCleric => double(Self::Fighter, Self::Cleric),
+            Class::FighterThief => double(Self::Fighter, Self::Thief),
+            Class::MageThief => double(Self::Mage, Self::Thief),
+            Class::ClericMage => double(Self::Cleric, Self::Mage),
+            Class::ClericThief => double(Self::Cleric, Self::Thief),
+            Class::FighterDruid => double(Self::Fighter, Self::Druid),
+            Class::ClericRanger => double(Self::Cleric, Self::Ranger),
+
+            Class::FighterMageCleric => triple(Self::Fighter, Self::Mage, Self::Cleric),
+            Class::FighterMageThief => triple(Self::Fighter, Self::Mage, Self::Thief),
+
+            c => single(*c),
+        }
+    }
+}
+
+impl std::fmt::Display for Class {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }

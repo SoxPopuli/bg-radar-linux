@@ -1,10 +1,15 @@
+pub mod alignment;
 pub mod classes;
+pub mod enemy_ally;
+pub mod gender;
+pub mod general;
+pub mod race;
 
 #[macro_export]
 macro_rules! int_enum {
     ($viz: vis enum $name: ident : $repr: ty { $($k: ident = $v: expr),+ $(,)? }) => {
         #[allow(clippy::enum_variant_names)]
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr($repr)]
         $viz enum $name {
             $($k = $v),+
