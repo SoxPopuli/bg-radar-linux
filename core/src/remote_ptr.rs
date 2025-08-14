@@ -1,15 +1,16 @@
-use crate::{
-    error::Error,
-    process::ProcessMemory,
-};
+use crate::{error::Error, process::ProcessMemory};
 use std::mem::MaybeUninit;
 
 #[repr(transparent)]
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default)]
 pub struct RemotePtr<T>(*const T);
 impl<T> RemotePtr<T> {
     pub fn new(ptr: *const T) -> Self {
         Self(ptr)
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
     }
 
     pub fn byte_offset(&self, offset: isize) -> RemotePtr<T> {
@@ -56,7 +57,30 @@ impl<T> RemotePtr<T> {
 }
 
 impl<T> Clone for RemotePtr<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
-impl <T> Copy for RemotePtr<T> {}
+impl<T> Copy for RemotePtr<T> {}
+
+impl<T> PartialEq for RemotePtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.addr() == other.0.addr()
+    }
+}
+impl<T> Eq for RemotePtr<T> {}
+
+impl<T> PartialOrd for RemotePtr<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T> Ord for RemotePtr<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let addr = self.0.addr();
+        let rhs_addr = other.0.addr();
+
+        usize::cmp(&addr, &rhs_addr)
+    }
+}

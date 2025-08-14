@@ -4,6 +4,7 @@ pub mod enemy_ally;
 pub mod gender;
 pub mod general;
 pub mod race;
+pub mod effect;
 
 #[macro_export]
 macro_rules! int_enum {

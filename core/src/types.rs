@@ -6,6 +6,7 @@ use crate::{
     ids::{
         alignment::Alignment,
         classes::{Class, ClassLevels},
+        effect::Effect,
         enemy_ally::EnemyAlly,
         gender::Gender,
         general::General,
@@ -337,6 +338,65 @@ impl CCreatureFileHeader {
 
 #[repr(C)]
 #[derive(Debug)]
+pub struct CGameEffect {
+    version: String,
+    res: String,
+    res_2: String,
+    res_3: String,
+    effect_id: Effect,
+    duration: u32,
+    duration_type: u32,
+    spell_level: i32,
+    source_res: String,
+}
+impl CGameEffect {
+    pub fn new(process: impl ProcessMemory + Copy, ptr: RemotePtr<c_void>) -> Result<Self, Error> {
+        let base_ptr = ptr.byte_offset(0x8);
+
+        let version = read_res_ref(process, base_ptr, 0x0)?;
+        let res = read_res_ref(process, base_ptr, 0x28)?;
+        let spell_level = read(process, base_ptr, 0x10)?;
+
+        Ok(Self {
+            version,
+            res,
+            res_2: read_res_ref(process, base_ptr, 0x68)?,
+            res_3: read_res_ref(process, base_ptr, 0x70)?,
+            effect_id: read(process, base_ptr, 0x8)?,
+            duration_type: read(process, base_ptr, 0x1C)?,
+            duration: read(process, base_ptr, 0x20)?,
+            spell_level,
+            source_res: read_res_ref(process, base_ptr, 0x8C)?,
+        })
+    }
+}
+
+fn read_ptr_list<T, P: ProcessMemory + Copy>(
+    process: P,
+    base_ptr: RemotePtr<c_void>,
+    read_func: impl Fn(P, RemotePtr<c_void>) -> Result<T, Error>,
+) -> Result<Vec<T>, Error> {
+    let mut lst = vec![];
+    let mut head: RemotePtr<c_void> = unsafe { base_ptr.byte_offset(0x8).cast().read(process)? };
+
+    let count: u32 = unsafe { base_ptr.byte_offset(0x18).cast().read(process)? };
+
+    for _ in 0..count {
+        let next = unsafe { head.cast().read(process)? };
+
+        let data_ptr: RemotePtr<c_void> = unsafe { head.byte_offset(0x10).cast().read(process)? };
+
+        let x = read_func(process, data_ptr.cast())?;
+        lst.push(x);
+
+        head = next;
+    }
+
+    Ok(lst)
+}
+
+#[repr(C)]
+#[derive(Debug)]
 /// https://eeex-docs.readthedocs.io/en/latest/EE%20Game%20Structures%20%28x64%29/CG/index.html#cgamesprite
 pub struct CGameSprite {
     pub base: CGameAIBase,
@@ -347,6 +407,8 @@ pub struct CGameSprite {
     pub current_area: String,
 
     pub class_levels: ClassLevels,
+    pub equipped_effects: Vec<CGameEffect>,
+    pub timed_effects: Vec<CGameEffect>,
 }
 impl CGameSprite {
     pub fn new(
@@ -359,14 +421,23 @@ impl CGameSprite {
         } else {
             let res_ref = read_res_ref(process, entity.ptr, 0x540)?;
 
+            let derived_stats = CDerivedStats::new(process, entity.ptr.byte_offset(0x1120))?;
+            let class = base.object.type_ai.class.clone().to_option().unwrap();
+            let levels = class.get_levels(&derived_stats);
+
             // 0x18 before value in docs?
             let name = read_string(process, entity.ptr, 0x3910, 64)?.unwrap();
             let current_area = read_res_ref(process, entity.ptr, 0x3A20 - 0x18)?;
 
-            let derived_stats = CDerivedStats::new(process, entity.ptr.byte_offset(0x1120))?;
+            let equipped_effects = {
+                let offset = entity.ptr.byte_offset(0x49B0 - 0x18);
+                read_ptr_list(process, offset, CGameEffect::new)
+            }?;
 
-            let class = base.object.type_ai.class.clone().to_option().unwrap();
-            let levels = class.get_levels(&derived_stats);
+            let timed_effects = {
+                let offset = entity.ptr.byte_offset(0x4A00 - 0x18);
+                read_ptr_list(process, offset, CGameEffect::new)
+            }?;
 
             Ok(Some(Self {
                 base,
@@ -377,6 +448,8 @@ impl CGameSprite {
                 current_area,
 
                 class_levels: levels,
+                equipped_effects,
+                timed_effects,
             }))
         }
     }
