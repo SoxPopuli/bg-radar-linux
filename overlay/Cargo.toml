@@ -10,6 +10,10 @@ crate-type = ["rlib", "cdylib"]
 core = { path = "../core", package = "bg-radar-linux-core" }
 libc.workspace = true
 # gl = "0.14.0"
+glow = "0.16.0"
+egui = "0.32.1"
+egui_glow = "0.32.1"
+x11rb = { version = "0.13.1" }
 
 [build-dependencies]
 gl_generator = "0.14.0"

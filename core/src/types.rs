@@ -424,40 +424,39 @@ pub struct CGameSprite {
 impl CGameSprite {
     pub fn new(
         process: impl ProcessMemory + Copy,
-        entity: &EntityPtr,
+        entity @ EntityPtr { ptr, .. }: &EntityPtr,
         base: CGameAIBase,
     ) -> Result<Option<Self>, Error> {
         if !entity.is_valid() || base.object.object_type != ObjectType::Sprite {
             Ok(None)
         } else {
-            let res_ref = read_res_ref(process, entity.ptr, 0x540)?;
+            let res_ref = read_res_ref(process, *ptr, 0x540)?;
 
-            let derived_stats = CDerivedStats::new(process, entity.ptr.byte_offset(0x1120))?;
+            let derived_stats = CDerivedStats::new(process, ptr.byte_offset(0x1120))?;
             let class = base.object.type_ai.class.clone().to_option().unwrap();
             let levels = class.get_levels(&derived_stats);
 
             // 0x18 before value in docs?
-            let name = read_string(process, entity.ptr, 0x3910, 64)?.unwrap();
+            let name = read_string(process, *ptr, 0x3910, 64)?.unwrap();
             let current_area = read_res_ref(process, entity.ptr, 0x3A20 - 0x18)?;
 
             let equipped_effects = {
-                let offset = entity.ptr.byte_offset(0x49B0 - 0x18);
+                let offset = ptr.byte_offset(0x49B0 - 0x18);
                 read_ptr_list(process, offset, CGameEffect::new)
             }?;
 
             let timed_effects = {
-                let offset = entity.ptr.byte_offset(0x4A00 - 0x18);
+                let offset = ptr.byte_offset(0x4A00 - 0x18);
                 read_ptr_list(process, offset, CGameEffect::new)
             }?;
 
             Ok(Some(Self {
                 base,
                 res_ref,
-                base_stats: CCreatureFileHeader::new(process, entity.ptr.byte_offset(0x560))?,
+                base_stats: CCreatureFileHeader::new(process, ptr.byte_offset(0x560))?,
                 name,
                 derived_stats,
                 current_area,
-
                 class_levels: levels,
                 equipped_effects,
                 timed_effects,
